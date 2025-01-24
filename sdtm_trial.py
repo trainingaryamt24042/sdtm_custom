@@ -4,7 +4,6 @@ from pyspark.sql.functions import col, sum as _sum
 # Initialize Spark session
 spark = SparkSession.builder \
     .appName("Sum Ages") \
-    .config("spark.jars","/home/mt24042/Downloads/postgresql-42.7.5.jar") \
     .getOrCreate()
 
 jdbc_url = "jdbc:postgresql://w3.training5.modak.com:5432/postgres"
