@@ -13,7 +13,9 @@ properties = {"user": "mt24042", "password": "mt24042@m06y24", "driver": "org.po
 
 df = spark.read.jdbc(url=jdbc_url, table=table_name, properties=properties)
 
-
+df.show()
+df = df.where((df.age > 70) & (df.race == 'Asian'))
+df.show()
 age_sum = df.select(_sum(col("age")).alias("total_age"))
 
 age_sum.show()
