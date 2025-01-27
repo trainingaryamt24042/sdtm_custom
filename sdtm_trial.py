@@ -20,7 +20,10 @@ def avg_age_per_race(df, column_name):
 
 df = spark.read.jdbc(url=jdbc_url, table=table_name, properties=properties)
 
-filtered_df = df.where((df.age > 70) & (df.race == 'Asian'))
+df_birthdate = skew_birthdate(df, "brthdt")
+df_birthdate.write.jdbc(url=jdbc_url, table=output_filtered_table, mode="overwrite", properties=properties)
+
+filtered_df = df_birthdate.where((df_birthdate.age > 70) & (df_birthdate.race == 'Asian'))
 filtered_df.write.jdbc(url=jdbc_url, table=output_filtered_table, mode="overwrite", properties=properties)
 
 date_diff = df.withColumn("date_diff", datediff(df["rfendtc"], df["rfstdtc"]))
