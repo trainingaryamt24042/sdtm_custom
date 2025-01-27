@@ -1,5 +1,5 @@
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, sum as _sum
+from pyspark.sql.functions import col, sum as _sum, expr, avg
 
 spark = SparkSession.builder \
     .appName("Sum Ages") \
