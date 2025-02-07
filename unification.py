@@ -40,6 +40,7 @@ class DataUnifier:
             schema = self.build_schema(domain)
             table_list = json.loads(self.table_info.get(domain, "{}"))
 
+            # Define schema for unified table
             unified_schema = StructType([
                 StructField(col, StringType(), True) if dtype.startswith('varchar') or dtype == 'string' else
                 StructField(col, FloatType(), True) if dtype in ('float', 'double') else
@@ -50,19 +51,25 @@ class DataUnifier:
                 for col, dtype in schema.items()
             ] + [StructField("source_dataset", StringType(), True)])
 
+            # Create empty dataframe with the defined unified schema
             unified_df = spark.createDataFrame([], unified_schema)
 
             for table_name, col_info in table_list.items():
                 logging.info(f"Processing table: {table_name} for domain: {domain}")
+                # Read the data from each source table
                 temp_df = spark.read.jdbc(url=self.jdbc_url, table=table_name, properties=self.db_properties)
-                temp_df = temp_df.selectExpr(*[f"CAST({col} AS {col_info.get(col, 'string')}) AS {col}" for col in schema], f"'{table_name}' AS source_dataset")
+                # Cast columns to their respective types as defined in schema
+                temp_df = temp_df.selectExpr(
+                    *[f"CAST({col} AS {col_info.get(col, 'string')}) AS {col}" for col in schema], 
+                    f"'{table_name}' AS source_dataset"
+                )
                 unified_df = unified_df.unionByName(temp_df)
 
+            # Write the unified dataframe to the destination PostgreSQL table
             unified_df.write.jdbc(url=self.jdbc_url, table=unified_table, mode="overwrite", properties=self.db_properties)
             logging.info(f"Unified data for domain '{domain}' saved to {unified_table} in PostgreSQL")
         except Exception as e:
             logging.error(f"Unification failed for domain '{domain}': {e}")
-
 
 def main():
     jdbc_url = "jdbc:postgresql://w3.training5.modak.com:5432/postgres"
