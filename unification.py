@@ -4,9 +4,7 @@ from pyspark.sql.types import StructType, StructField, StringType, IntegerType, 
 from urllib.parse import quote_plus
 
 spark = SparkSession.builder \
-    .appName("Unify Datasets") \
-    .config("spark.jars", "/home/mt24042/Downloads/postgresql-42.7.5.jar") \
-    .getOrCreate()
+    .appName("Unify Datasets").getOrCreate()
 
 
 # Define the PostgreSQL connection details
