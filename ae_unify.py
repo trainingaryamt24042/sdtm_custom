@@ -5,7 +5,7 @@ from pyspark.sql.types import StructType, StructField, StringType, IntegerType, 
 # ✅ Initialize Spark Session
 spark = SparkSession.builder \
     .appName("SDTM AE Dataset Unification") \
-    .config("spark.jars"") \
+    .config("spark.jars") \
     .getOrCreate()
 
 # ✅ PostgreSQL Configuration
