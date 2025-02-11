@@ -1,71 +1,98 @@
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col
-from pyspark.sql.types import StructType, StructField, StringType, IntegerType, FloatType, DateType, TimestampType
+from pyspark.sql.functions import col, lit
+from pyspark.sql.types import StructType, StructField, StringType, IntegerType, DoubleType, DateType, TimestampType
 
-# Initialize Spark Session
+# ✅ Initialize Spark Session
 spark = SparkSession.builder \
-    .appName("Unify SDTM AE Datasets").getOrCreate()
+    .appName("SDTM AE Dataset Unification") \
+    .config("spark.jars"") \
+    .getOrCreate()
 
-# Define PostgreSQL connection details
-postgres_url = "jdbc:postgresql://w3.training5.modak.com:5432/postgres"
-postgres_properties = {
+# ✅ PostgreSQL Configuration
+DB_CONFIG = {
+    "url": "jdbc:postgresql://w3.training5.modak.com:5432/postgres",
     "user": "mt24042",
     "password": "mt24042@m06y24",
     "driver": "org.postgresql.Driver"
 }
 
-# Define unified schema for the datasets
-unified_schema = StructType([
-    StructField("USUBJID", StringType(), nullable=False),
-    StructField("AESEQ", IntegerType(), nullable=True),
-    StructField("AETERM", StringType(), nullable=True),
-    StructField("AESTDTC", TimestampType(), nullable=True),  # Unifying date format
-    StructField("AESEV", StringType(), nullable=True),
-    StructField("AEREL", StringType(), nullable=True),
-    StructField("AEOUT", StringType(), nullable=True),
-    StructField("AESTDY", FloatType(), nullable=True)  # Unified as Float
-])
+# ✅ List of AE Datasets
+datasets = ["dataset_sdtm_ae1", "dataset_sdtm_ae2", "dataset_sdtm_ae3"]
 
-# Load the datasets from PostgreSQL
-df1 = spark.read.jdbc(url=postgres_url, table="dataset_sdtm_ae1", properties=postgres_properties)
-df2 = spark.read.jdbc(url=postgres_url, table="dataset_sdtm_ae2", properties=postgres_properties)
-df3 = spark.read.jdbc(url=postgres_url, table="dataset_sdtm_ae3", properties=postgres_properties)
+# ✅ Read Schema Information from PostgreSQL
+schema_query = f"""
+    (SELECT table_name, column_name, data_type 
+     FROM information_schema.columns 
+     WHERE table_name IN ({', '.join(f"'{table}'" for table in datasets)})) as schema_table
+"""
 
-# Harmonize the column types
-df1 = df1.withColumn("AESTDTC", col("AESTDTC").cast(TimestampType()))
-df2 = df2.withColumn("AESTDTC", col("AESTDTC").cast(TimestampType()))
-df3 = df3.withColumn("AESTDTC", col("AESTDTC").cast(TimestampType()))
+schema_df = spark.read.format("jdbc") \
+    .option("url", DB_CONFIG["url"]) \
+    .option("dbtable", schema_query) \
+    .option("user", DB_CONFIG["user"]) \
+    .option("password", DB_CONFIG["password"]) \
+    .option("driver", DB_CONFIG["driver"]) \
+    .load()
 
-df1 = df1.withColumn("AESTDY", col("AESTDY").cast(FloatType()))
-df2 = df2.withColumn("AESTDY", col("AESTDY").cast(FloatType()))
-df3 = df3.withColumn("AESTDY", col("AESTDY").cast(FloatType()))
+# ✅ Convert Schema to Dictionary
+schema_dict = schema_df.rdd.map(lambda row: (row.column_name, row.data_type)).groupByKey().mapValues(set).collectAsMap()
 
-# Select and align column names
-df1 = df1.select("USUBJID", "AESEQ", "AETERM", "AESTDTC", "AESEV", "AEREL", "AEOUT", "AESTDY")
-df2 = df2.select("USUBJID", "AESEQ", "AETERM", "AESTDTC", "AESEV", "AEREL", "AEOUT", "AESTDY")
-df3 = df3.select("USUBJID", "AESEQ", "AETERM", "AESTDTC", "AESEV", "AEREL", "AEOUT", "AESTDY")
+# ✅ Define Data Type Mapping for PySpark
+def unify_datatype(types):
+    types = set(types)
+    
+    if "timestamp" in types and "date" in types:
+        return TimestampType()
+    if "timestamp" in types:
+        return TimestampType()
+    if "date" in types:
+        return DateType()
+    if "varchar" in types or "text" in types:
+        return StringType()
+    if "integer" in types:
+        return IntegerType()
+    if "double precision" in types or "numeric" in types:
+        return DoubleType()
+    return StringType()  # Default fallback
 
-# Union the datasets together
-unified_df = df1.unionByName(df2).unionByName(df3)
+# ✅ Generate Unified Schema
+unified_schema = StructType([StructField(col, unify_datatype(types), True) for col, types in schema_dict.items()])
 
-# Cast the DataFrame to match the unified schema
-unified_df = unified_df.select(
-    col("USUBJID").cast(StringType()),
-    col("AESEQ").cast(IntegerType()),
-    col("AETERM").cast(StringType()),
-    col("AESTDTC").cast(TimestampType()),
-    col("AESEV").cast(StringType()),
-    col("AEREL").cast(StringType()),
-    col("AEOUT").cast(StringType()),
-    col("AESTDY").cast(FloatType())
-)
+# ✅ Read and Standardize Datasets
+dfs = []
+for dataset in datasets:
+    df = spark.read.format("jdbc") \
+        .option("url", DB_CONFIG["url"]) \
+        .option("dbtable", dataset) \
+        .option("user", DB_CONFIG["user"]) \
+        .option("password", DB_CONFIG["password"]) \
+        .option("driver", DB_CONFIG["driver"]) \
+        .load()
 
-# Write the unified dataset back to PostgreSQL
-try:
-    unified_df.write.jdbc(url=postgres_url, table="unified_sdtm_ae_dataset", mode="overwrite", properties=postgres_properties)
-    print("Unified SDTM AE dataset written to PostgreSQL successfully.")
-except Exception as e:
-    print("Error while writing to PostgreSQL:", e)
+    # ✅ Ensure all columns exist (add missing ones as NULL)
+    for col_name in schema_dict.keys():
+        if col_name not in df.columns:
+            df = df.withColumn(col_name, lit(None).cast(unified_schema[col_name].dataType))
 
-# Stop the Spark session
-spark.stop()
+    # ✅ Select columns in correct order & cast types
+    df = df.select(*[col(c).cast(unified_schema[c].dataType) for c in schema_dict.keys()])
+    
+    dfs.append(df)
+
+# ✅ Merge DataFrames
+unified_df = dfs[0]
+for df in dfs[1:]:
+    unified_df = unified_df.unionByName(df)
+
+# ✅ Write Unified AE Data Back to PostgreSQL
+unified_df.write \
+    .format("jdbc") \
+    .option("url", DB_CONFIG["url"]) \
+    .option("dbtable", "unified_sdtm_dataset_ae_final") \
+    .option("user", DB_CONFIG["user"]) \
+    .option("password", DB_CONFIG["password"]) \
+    .option("driver", DB_CONFIG["driver"]) \
+    .mode("overwrite") \
+    .save()
+
+print("🎉 Unified AE dataset successfully stored in PostgreSQL!")
