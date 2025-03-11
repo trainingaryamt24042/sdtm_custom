@@ -79,8 +79,8 @@ try:
     df_rules = spark.read.format("jdbc") \
         .option("url", KOSH_CONFIG["url"]) \
         .option("dbtable", "test_data_profile.transformations_rules_model") \
-        .option("user", KOSH_CONFIG["user1"]) \
-        .option("password", KOSH_CONFIG["password1"]) \
+        .option("user", KOSH_CONFIG["user"]) \
+        .option("password", KOSH_CONFIG["password"]) \
         .option("driver", KOSH_CONFIG["driver"]) \
         .load()
 except Exception as e:
