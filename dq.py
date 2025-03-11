@@ -22,7 +22,7 @@ KOSH_CONFIG = {
 
 # Initialize Spark session
 spark = SparkSession.builder.appName("SDTM_Transformation") \
-    .config("spark.jars", "/home/mt24042/Downloads/postgresql-42.5.1.jar") \
+    .config("spark.jars") \
     .getOrCreate()
 
 # DataRecode function
