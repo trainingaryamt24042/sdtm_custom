@@ -14,8 +14,8 @@ SOURCE_CONFIG = {
 
 KOSH_CONFIG = {
     "url": "jdbc:postgresql://testnabu-3.modak.com:5432/kosh",
-    "user1": "as2408",
-    "password1": "kn2HR26oLjZx",
+    "user": "as2408",
+    "password": "kn2HR26oLjZx",
     "driver": "org.postgresql.Driver"
 }
 
